@@ -1,0 +1,20 @@
+# Python environment
+venv/
+__pycache__/
+*.pyc
+
+# Site-specific configuration — contains real survey control coordinates.
+# Copy config.example.yaml to config.yaml and fill in your own project data.
+config.yaml
+config.yaml.bak
+
+# Historical/reference material — not needed to run or develop the project
+archive/
+backups/
+
+# Survey input data and generated output are project/site specific and are
+# not tracked; the folder structure itself is kept via .gitkeep.
+import/*
+!import/.gitkeep
+output/*
+!output/.gitkeep

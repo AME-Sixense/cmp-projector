@@ -1,0 +1,77 @@
+# Copy this file to config.yaml (which is gitignored, since it holds real
+# survey control data) and fill in your own project(s). See README.md for a
+# full explanation of the pipeline this config drives.
+#
+# Two example projects are included below, since .cmp files come from total
+# stations set up in two fundamentally different ways:
+#
+#   - ExampleAlreadyGeoreferenced: the total station was set up directly on
+#     known, real-world coordinates (e.g. resected onto state-plane control),
+#     so its raw .cmp coordinates are already meaningful as-is.
+#
+#   - ExampleLocalCoordinates: the total station used an arbitrary local grid
+#     (e.g. an assumed origin/azimuth), so every group needs an "anchor" below
+#     telling the pipeline the real-world position/orientation to snap that
+#     group's local point cloud onto before reprojecting.
+
+projects:
+  # ---------------------------------------------------------------
+  - project: "ExampleAlreadyGeoreferenced"
+    outputs: ["kmz", "csv"]     # any combination of the exporters in core/exporters/
+
+    coordinate-systems:
+      - inProj:  26985     # EPSG code the raw .cmp coordinates are already in
+      - outProj: 26985     # EPSG code to convert to before reprojecting to lat/long (often same as inProj)
+
+    vector-colors:
+      - mon_color: "ff0000ff"   # KMZ line color for MON (monitoring) points — AABBGGRR hex
+      - ref_color: "ff008000"   # KMZ line color for REF (reference) points
+      - com_color: "ffff0000"   # KMZ line color for points shared/common between setups
+
+    label:      1             # 0 = hide point labels in KMZ | 1 = show them
+    xy_order:   1             # 0 = Northing,Easting | 1 = Easting,Northing (match your .cmp column order)
+    scale:      3.28083333    # unit factor applied only when inProj is "local_m" (meters -> US survey feet)
+
+    coord_adjustments:
+      groups:
+        - name: 1             # must match the Group_<N> number in your .cmp filenames
+          anchor:
+            inst:      "C01"    # exact station name as printed in the .cmp file's "Coordonnées compensées" table
+            easting:   0.0      # known real-world easting of this station (same CRS as inProj)
+            northing:  0.0      # known real-world northing of this station
+            elevation: 0.0      # known real-world elevation of this station
+            rotation:  0         # correction rotation in gons, clockwise (0 if already true azimuth)
+
+  # ---------------------------------------------------------------
+  - project: "ExampleLocalCoordinates"
+    outputs: ["kmz"]
+
+    coordinate-systems:
+      - inProj:  "local_m"   # sentinel meaning "arbitrary local grid, in meters" — NOT a real EPSG code
+      - outProj: 2248        # EPSG code of the real-world CRS this project's local grid gets placed into
+
+    vector-colors:
+      - mon_color: "ff0000ff"
+      - ref_color: "ff008000"
+      - com_color: "ffff0000"
+
+    label:      1
+    xy_order:   1
+    scale:      3.28083333    # meters -> US survey feet; must match outProj's units
+
+    coord_adjustments:
+      groups:
+        - name: 1
+          anchor:
+            inst:      "C01"
+            easting:   0.0     # real-world (outProj) easting for this group's total station
+            northing:  0.0     # real-world (outProj) northing for this group's total station
+            elevation: 0.0     # real-world elevation for this group's total station
+            rotation:  0       # gons, clockwise, to align this group's local grid to true north
+        - name: 2              # add one "groups" entry per Group_<N> this project actually uses
+          anchor:
+            inst:      "C02"
+            easting:   0.0
+            northing:  0.0
+            elevation: 0.0
+            rotation:  0

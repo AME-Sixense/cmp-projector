@@ -1,0 +1,118 @@
+/* === GLOBAL SCREEN === */
+Screen {
+    background: #1e1e1e;
+    color: #cccccc;
+}
+
+/* === HEADER BAR === */
+#header {
+    background: #252525;
+    color: #cccccc;
+    text-align: center;
+    padding: 1;
+    text-style: bold;
+    height: 3;
+    width: 100%;
+}
+
+/* === TITLE ABOVE BOX === */
+#title {
+    text-align: center;
+    padding: 1;
+    color: #cccccc;
+    text-style: bold;
+}
+
+/* === PROJECT LIST VIEW REGION === */
+#project_center {
+    width: 100%;
+    height: 75%;
+}
+
+/* === PROJECT LIST BOX === */
+#project_box {
+    width: 30;
+    height: 80%;
+    border: solid #3a3a3a;
+    background: #252525;
+    padding: 1;
+}
+
+#project_list {
+    background: #252525;
+    color: #cccccc;
+}
+
+ListItem {
+    padding: 0 1;
+}
+
+/* Textual marks the highlighted row of a ListView with the "-highlight" class,
+   not the ":focus" pseudo-class (which never actually matches a ListItem) —
+   this is the selector that actually renders the highlight. */
+ListItem.-highlight {
+    background: #4a90e2;
+    color: #ffffff;
+    text-style: bold;
+}
+
+/* === OUTPUT OPTIONS VIEW REGION === */
+#options_center {
+    width: 100%;
+    height: 75%;
+}
+
+/* === OUTPUT OPTIONS BOX (same dimensions as #project_box) === */
+#options_box {
+    width: 30;
+    height: 80%;
+    border: solid #3a3a3a;
+    background: #252525;
+    padding: 1;
+}
+
+#options_list {
+    background: #252525;
+    color: #cccccc;
+}
+
+/* === CONSOLE VIEW REGION === */
+#console_center {
+    width: 100%;
+    height: 1fr;
+}
+
+/* === CONSOLE BOX === */
+#console_box {
+    width: 90%;
+    height: 1fr;   /* ← makes ScrollView actually receive room */
+    border: solid #3a3a3a;
+    background: #1a1a1a;
+    padding: 1;
+    layout: vertical;
+}
+
+/* === RICH PROGRESS BAR (docked bottom) === */
+#progress_bar {
+    width: 100%;
+    height: 1;
+    dock: bottom;
+}
+
+/* === SCROLLABLE CONSOLE OUTPUT === */
+#console_scroll {
+    width: 100%;
+    height: 1fr;
+    background: #1a1a1a;
+    color: #dddddd;
+}
+
+/* === FOOTER BAR === */
+#footer {
+    background: #252525;
+    color: #cccccc;
+    text-align: right;
+    height: 1;
+    dock: bottom;
+    width: 100%;
+}
