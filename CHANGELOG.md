@@ -1,5 +1,43 @@
 # Change Log
 
+## [2.0.0]
+
+### Changed
+
+- **Breaking:** `config.yaml`'s per-project `project` key is renamed to `project-id`; a new, separate `project-name` key was added (a human-readable name shown in generated outputs, e.g. the interactive map's title bar). Existing `config.yaml` files must be updated to the new key name before running.
+
+### Added
+
+- Interactive map: a thin branded top bar (project name on the left, Sixense logo on the right, with a subtle "Generated `<date>`" timestamp).
+- Interactive map: a global "Labels" toggle in the sidebar, off by default, alongside the existing per-group Targets/Lines toggles.
+- TUI: the version number moved from the header title to a subtle, left-aligned label sharing the footer bar with the navigation hints.
+
+### Fixed
+
+- Interactive map: the total-station marker icon was rendered squeezed (forced into a square box despite its non-square source image); it now keeps its correct aspect ratio.
+
+## [1.2.0]
+
+### Added
+
+- Two new export formats: `static_map` (a georeferenced PNG plus a matching `.pgw` world file) and `interactive_map` (a single self-contained HTML file with a Leaflet-based map), both showing the same Group/Instrument/Targets/Lines structure as the KMZ output, on an Esri World Street Map basemap.
+- `core/exporters/geo_common.py`: a shared module that builds that Group/Instrument/Targets/Lines structure (and converts KMZ line colors to CSS) once, in memory, for reuse by both new exporters within a single run.
+- `static_map` can be limited to a subset of a project's groups, zoomed to fit just that selection — pick them interactively in a new TUI screen (shown after choosing outputs, when `static_map` is selected) or via the CLI's new `--groups` flag.
+- New dependencies: `matplotlib`, `contextily`, `truststore`.
+- Leaflet 1.9.4 vendored under `assets/vendor/leaflet/`, so the interactive map's app shell is fully self-contained (only its basemap tiles require a live connection).
+
+### Fixed
+
+- Basemap tiles are now sourced from Esri's free `World_Street_Map` service instead of `tile.openstreetmap.org` (whose anti-bulk-scraping policy actively blocks this kind of use) or CARTO (whose free tier now requires a signed-up API key).
+- A TLS-inspecting network proxy re-signs certificates with its own CA, which the OS trust store already trusts but Python's bundled `certifi` list didn't — fixed by verifying against the OS trust store instead (`truststore`).
+- Deep zoom levels no longer show Esri's "Map data not yet available" placeholder — both outputs cap real tile requests at a reliably-covered zoom depth, with the interactive map blurring/upscaling its basemap past that point instead of requesting missing tiles.
+
+## [1.1.0]
+
+### Added
+
+- KMZ output now splits each instrument's points and lines into separate "Targets" and "Lines" subfolders, instead of mixing them together in one folder.
+
 ## [1.0.0]
 
 First tracked release.

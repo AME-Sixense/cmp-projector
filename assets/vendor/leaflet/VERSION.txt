@@ -1,0 +1,6 @@
+Leaflet 1.9.4, downloaded from https://unpkg.com/leaflet@1.9.4/dist/
+leaflet.js, leaflet.css, and images/{layers.png,layers-2x.png,marker-icon.png}
+are the unmodified official release. License: BSD-2-Clause, see LICENSE.
+
+To upgrade, download the new release's dist/ files from the same source,
+replace these files, and update this version note.

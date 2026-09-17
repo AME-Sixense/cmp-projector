@@ -5,6 +5,8 @@ from core.import_cmp import Parse, import_dir, export_dir
 from core.proj_coords import apply_offsets, trans_coords
 from core.exporters.to_kmz import export_to_kmz
 from core.exporters.to_csv import export_to_csv
+from core.exporters.to_static_map import export_to_static_map
+from core.exporters.to_interactive_map import export_to_interactive_map
 
 # Registry of output modules. Each project's config.yaml "outputs" list
 # selects which of these run; adding a new export format (e.g. QGIS) just
@@ -14,10 +16,12 @@ from core.exporters.to_csv import export_to_csv
 EXPORTERS = {
     "kmz": export_to_kmz,
     "csv": export_to_csv,
+    "static_map": export_to_static_map,
+    "interactive_map": export_to_interactive_map,
 }
 
 
-def run_project(proj_name, config, verbose=False, outputs_override=None):
+def run_project(proj_name, config, verbose=False, outputs_override=None, group_filter=None):
     """Run the full CMP Projector pipeline for one project: parse its .cmp
     files, apply group anchor offsets/rotation, reproject to lat/long, and
     run whichever export modules are selected.
@@ -32,9 +36,13 @@ def run_project(proj_name, config, verbose=False, outputs_override=None):
     names) uses that list instead for this run only, without needing to
     change config.yaml.
 
+    group_filter, if given, is a list of group names to include in the
+    static_map output only (every other exporter is unaffected); None means
+    all groups.
+
     Returns the final, exported dataframe.
     """
-    project_config = next((proj for proj in config['projects'] if proj['project'] == proj_name), None)
+    project_config = next((proj for proj in config['projects'] if proj['project-id'] == proj_name), None)
     if project_config is None:
         raise ValueError(f"Project configuration not found for '{proj_name}'")
 
@@ -67,13 +75,17 @@ def run_project(proj_name, config, verbose=False, outputs_override=None):
     final_df = trans_coords(in_proj, out_proj, offset_df, scale)
     assert isinstance(final_df, pd.DataFrame), f"trans_coords returned {type(final_df)}"
 
+    # A shallow copy so this run's group filter doesn't leak into the shared
+    # config dict (project_config is the actual object from config['projects']).
+    run_config = {**project_config, "_group_filter": group_filter}
+
     for output_name in outputs:
         exporter = EXPORTERS.get(output_name)
         if exporter is None:
             print(f"WARNING: Unknown output type '{output_name}' for project '{proj_name}' — skipping.")
             continue
         print(f"Creating {output_name} output")
-        exporter(final_df, proj_name, export_folder, project_config)
+        exporter(final_df, proj_name, export_folder, run_config)
 
     print("\nComplete!")
 

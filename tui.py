@@ -24,14 +24,14 @@ pulse_color_2 = "#b7d1f8"
 
 def _find_project_block(text: str, project_name: str) -> tuple[int, int]:
     """Return the (start, end) character offsets of one project's YAML block,
-    from its "- project: "<name>"" line up to just before the next "- project:"
-    line (or end of file)."""
-    start_pattern = re.compile(r'^(\s*)-\s*project:\s*"' + re.escape(project_name) + r'"\s*$', re.MULTILINE)
+    from its "- project-id: "<name>"" line up to just before the next
+    "- project-id:" line (or end of file)."""
+    start_pattern = re.compile(r'^(\s*)-\s*project-id:\s*"' + re.escape(project_name) + r'"\s*$', re.MULTILINE)
     m = start_pattern.search(text)
     if not m:
         raise ValueError(f"Could not find project '{project_name}' in config.yaml")
 
-    next_pattern = re.compile(r'^\s*-\s*project:\s*"', re.MULTILINE)
+    next_pattern = re.compile(r'^\s*-\s*project-id:\s*"', re.MULTILINE)
     next_m = next_pattern.search(text, m.end())
     end = next_m.start() if next_m else len(text)
     return m.start(), end
@@ -60,9 +60,9 @@ def update_config_outputs(config_path: Path, project_name: str, outputs: list[st
     )
     if n == 0:
         # No existing "outputs:" line for this project — insert one right
-        # after its "- project:" line, matching the file's existing convention.
+        # after its "- project-id:" line, matching the file's existing convention.
         new_block, n = re.subn(
-            r'(^\s*-\s*project:\s*"' + re.escape(project_name) + r'"\s*\n)',
+            r'(^\s*-\s*project-id:\s*"' + re.escape(project_name) + r'"\s*\n)',
             lambda m: m.group(1) + f"    outputs: {outputs_str}\n",
             block,
             count=1,
@@ -82,32 +82,39 @@ def update_config_outputs(config_path: Path, project_name: str, outputs: list[st
 # ---------- Output-options list rows ----------
 
 
+_ACTION_KINDS = {"run", "select_all", "continue"}
+
+
 class OptionListItem(ListItem):
-    """A row in the output-options ListView: either a toggleable choice (an
-    exporter, or "save to config") or the final "Run" action. Reuses the same
-    ListView/ListItem widgets (and styling) as the project list, so this
-    screen navigates and looks the same way — arrow keys move the highlight,
+    """A row in the output-options or group-options ListView: either a
+    toggleable choice (an exporter, group, or "save to config") or a
+    momentary action ("Run", "Select All", "Continue"). Reuses the same
+    ListView/ListItem widgets (and styling) as the project list, so these
+    screens navigate and look the same way — arrow keys move the highlight,
     Enter activates the highlighted row."""
 
     def __init__(self, kind: str, label: str, *, key: str | None = None, checked: bool = False, **kwargs):
-        self.kind = kind  # "exporter", "save", or "run"
-        self.key = key  # exporter name, only set when kind == "exporter"
+        self.kind = kind  # "exporter", "group", "save", "run", "select_all", or "continue"
+        self.key = key  # exporter/group name, only set when kind == "exporter"/"group"
         self.checked = checked
         self._label_text = label
         self._static = Static(self._current_label(), markup=False)
         super().__init__(self._static, **kwargs)
 
     def _current_label(self) -> str:
-        if self.kind == "run":
+        if self.kind in _ACTION_KINDS:
             return f"▶ {self._label_text}"
         mark = "[x]" if self.checked else "[ ]"
         return f"{mark} {self._label_text}"
 
-    def toggle(self) -> None:
-        if self.kind == "run":
+    def set_checked(self, value: bool) -> None:
+        if self.kind in _ACTION_KINDS:
             return
-        self.checked = not self.checked
+        self.checked = value
         self._static.update(self._current_label())
+
+    def toggle(self) -> None:
+        self.set_checked(not self.checked)
 
 
 # ---------- Rich-based interval updater widgets (from the blog) ----------
@@ -157,7 +164,8 @@ class ProjectSelectorApp(App):
         self.projects: list[str] = []
         self.config: dict = {}
         self.pending_project: str | None = None
-        self.current_screen = "project_list"  # "project_list", "output_options", or "console_output"
+        self.pending_outputs: list[str] = []
+        self.current_screen = "project_list"  # "project_list", "output_options", "group_options", or "console_output"
         self._running_task: asyncio.Task | None = None
         # Tracks whether config.yaml has been backed up yet this session (this
         # process's lifetime). Only the first save of a session takes a
@@ -175,12 +183,12 @@ class ProjectSelectorApp(App):
             except yaml.YAMLError as e:
                 self.exit(f"Error parsing config file: {e}")
         self.config = config
-        self.projects = [p["project"] for p in config.get("projects", [])]
+        self.projects = [p["project-id"] for p in config.get("projects", [])]
         if not self.projects:
             self.exit("No projects found in the config file!")
 
     def get_project_config(self, project_name: str) -> dict:
-        return next(p for p in self.config["projects"] if p["project"] == project_name)
+        return next(p for p in self.config["projects"] if p["project-id"] == project_name)
 
     # ---------- Layout ----------
 
@@ -188,7 +196,7 @@ class ProjectSelectorApp(App):
         self.load_config()
 
         # HEADER (NOT scrollable)
-        yield Static(f"CMP PROJECTOR v{__version__}", id="header")
+        yield Static("CMP PROJECTOR", id="header")
 
         # TITLE
         yield Static("Select a Project:", id="title")
@@ -210,6 +218,13 @@ class ProjectSelectorApp(App):
                 id="options_box",
             )
 
+        # ===== GROUP OPTIONS VIEW (static_map group selection) =====
+        with Center(id="groups_center"):
+            yield Container(
+                ListView(id="groups_list"),
+                id="groups_box",
+            )
+
         # ===== CONSOLE VIEW =====
         with Center(id="console_center"):
             with Container(id="console_box"):
@@ -219,7 +234,9 @@ class ProjectSelectorApp(App):
                 yield IndeterminateProgressBar(color=pulse_color_2, id="progress_bar")
 
         # ===== FOOTER =====
-        yield Static("^q to Quit", id="footer")
+        with Container(id="footer_bar"):
+            yield Static(f"v{__version__}", id="version_label")
+            yield Static("^q to Quit", id="footer")
 
     # ---------- Lifecycle ----------
 
@@ -232,6 +249,7 @@ class ProjectSelectorApp(App):
         # Start on project list view
         self.query_one("#project_center").display = True
         self.query_one("#options_center").display = False
+        self.query_one("#groups_center").display = False
         self.query_one("#console_center").display = False
 
         # Hide bar initially
@@ -256,6 +274,7 @@ class ProjectSelectorApp(App):
 
         self.query_one("#project_center").display = True
         self.query_one("#options_center").display = False
+        self.query_one("#groups_center").display = False
         self.query_one("#console_center").display = False
         self.query_one("#progress_bar").display = False  # hide bar
 
@@ -280,6 +299,7 @@ class ProjectSelectorApp(App):
 
         self.query_one("#project_center").display = False
         self.query_one("#options_center").display = True
+        self.query_one("#groups_center").display = False
         self.query_one("#console_center").display = False
 
         footer = self.query_one("#footer", Static)
@@ -309,12 +329,51 @@ class ProjectSelectorApp(App):
 
         self.call_after_refresh(_focus_list)
 
+    async def show_group_options_view(self, project_name: str) -> None:
+        """Show the group-selection view for the static_map output, listing
+        every group configured for this project (from coord_adjustments.groups).
+        Only reached when "static_map" is among the selected outputs."""
+        self.current_screen = "group_options"
+
+        self.query_one("#project_center").display = False
+        self.query_one("#options_center").display = False
+        self.query_one("#groups_center").display = True
+        self.query_one("#console_center").display = False
+
+        footer = self.query_one("#footer", Static)
+        footer.update("↑/↓ to navigate, Enter to toggle/select all/continue, Esc to go back")
+
+        title = self.query_one("#title", Static)
+        title.update(f"Select groups for the static map ({project_name}):")
+
+        group_names = [
+            str(g["name"])
+            for g in self.get_project_config(project_name).get("coord_adjustments", {}).get("groups", [])
+        ]
+
+        groups_list = self.query_one("#groups_list", ListView)
+        await groups_list.clear()
+        items = [OptionListItem("select_all", "Select All")]
+        items += [OptionListItem("group", f"Group {name}", key=name, checked=True) for name in group_names]
+        items.append(OptionListItem("continue", "Continue"))
+        await groups_list.extend(items)
+        groups_list.index = 0
+
+        def _focus_list() -> None:
+            try:
+                self.query_one("#groups_list").focus()
+            except Exception as e:
+                self.console.log(f"Error focusing groups_list: {e}")
+
+        self.call_after_refresh(_focus_list)
+
     def show_console_view(self) -> None:
         """Show the console output view."""
         self.current_screen = "console_output"
 
         self.query_one("#project_center").display = False
         self.query_one("#options_center").display = False
+        self.query_one("#groups_center").display = False
         self.query_one("#console_center").display = True
         self.query_one("#progress_bar").display = True  # show bar
 
@@ -326,7 +385,9 @@ class ProjectSelectorApp(App):
 
     # ---------- Async subprocess streaming ----------
 
-    async def stream_project_output(self, selected_project: str, outputs: list[str]) -> None:
+    async def stream_project_output(
+        self, selected_project: str, outputs: list[str], group_filter: list[str] | None = None
+    ) -> None:
         """Run cli.py and stream its output into the console view."""
 
         console_log = self.query_one("#console_scroll", RichLog)
@@ -336,13 +397,12 @@ class ProjectSelectorApp(App):
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUNBUFFERED"] = "1"
 
+        cmd = ["python", "-u", "cli.py", selected_project, "--outputs", ",".join(outputs)]
+        if group_filter is not None:
+            cmd += ["--groups", ",".join(group_filter)]
+
         process = await asyncio.create_subprocess_exec(
-            "python",
-            "-u",
-            "cli.py",
-            selected_project,
-            "--outputs",
-            ",".join(outputs),
+            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             env=env,
@@ -387,23 +447,41 @@ class ProjectSelectorApp(App):
             if event.key == "escape":
                 self.show_project_view()
 
+        elif self.current_screen == "group_options":
+            if event.key == "escape":
+                await self.show_output_options_view(self.pending_project)
+
         elif self.current_screen == "console_output":
             if event.key == "enter":
                 self.show_project_view()
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
-        """Handle Enter/click on a row of the output-options list."""
-        if event.list_view.id != "options_list":
-            return  # not this screen's list (e.g. the project list)
-
+        """Handle Enter/click on a row of the output-options or group-options list."""
         item = event.item
         if not isinstance(item, OptionListItem):
             return
 
-        if item.kind == "run":
-            self._start_run()
-        else:
-            item.toggle()
+        if event.list_view.id == "options_list":
+            if item.kind == "run":
+                self._start_run()
+            else:
+                item.toggle()
+
+        elif event.list_view.id == "groups_list":
+            if item.kind == "select_all":
+                self._select_all_groups()
+            elif item.kind == "continue":
+                self._continue_after_groups()
+            else:
+                item.toggle()
+
+    def _select_all_groups(self) -> None:
+        items = [
+            child for child in self.query_one("#groups_list", ListView).children
+            if isinstance(child, OptionListItem) and child.kind == "group"
+        ]
+        for item in items:
+            item.set_checked(True)
 
     def _start_run(self) -> None:
         if self.pending_project is None:
@@ -425,6 +503,26 @@ class ProjectSelectorApp(App):
             )
             self._config_backed_up_this_session = True
 
+        self.pending_outputs = selected_outputs
+
+        if "static_map" in selected_outputs:
+            asyncio.create_task(self.show_group_options_view(self.pending_project))
+        else:
+            self._run(selected_outputs, group_filter=None)
+
+    def _continue_after_groups(self) -> None:
+        items = [
+            child for child in self.query_one("#groups_list", ListView).children
+            if isinstance(child, OptionListItem) and child.kind == "group"
+        ]
+        selected_groups = [item.key for item in items if item.checked]
+        if not selected_groups:
+            footer = self.query_one("#footer", Static)
+            footer.update("Select at least one group before continuing — Esc to go back")
+            return
+        self._run(self.pending_outputs, group_filter=selected_groups)
+
+    def _run(self, outputs: list[str], group_filter: list[str] | None) -> None:
         project_to_run = self.pending_project
 
         self.show_console_view()
@@ -433,7 +531,7 @@ class ProjectSelectorApp(App):
             self._running_task.cancel()
 
         self._running_task = asyncio.create_task(
-            self.stream_project_output(project_to_run, selected_outputs)
+            self.stream_project_output(project_to_run, outputs, group_filter)
         )
 
 

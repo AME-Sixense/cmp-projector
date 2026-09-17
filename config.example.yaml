@@ -16,8 +16,9 @@
 
 projects:
   # ---------------------------------------------------------------
-  - project: "ExampleAlreadyGeoreferenced"
-    outputs: ["kmz", "csv"]     # any combination of the exporters in core/exporters/
+  - project-id: "ExampleAlreadyGeoreferenced"     # must match the import/<project-id>/ folder name
+    project-name: "Example Already Georeferenced"  # human-readable name shown in generated outputs (e.g. the interactive map's title bar)
+    outputs: ["kmz", "csv", "static_map", "interactive_map"]     # any combination of the exporters in core/exporters/
 
     coordinate-systems:
       - inProj:  26985     # EPSG code the raw .cmp coordinates are already in
@@ -43,7 +44,8 @@ projects:
             rotation:  0         # correction rotation in gons, clockwise (0 if already true azimuth)
 
   # ---------------------------------------------------------------
-  - project: "ExampleLocalCoordinates"
+  - project-id: "ExampleLocalCoordinates"
+    project-name: "Example Local Coordinates"
     outputs: ["kmz"]
 
     coordinate-systems:

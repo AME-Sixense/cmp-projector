@@ -16,8 +16,10 @@ def make_kmz_structure(kmz, df, label, mon_color, ref_color, com_color):
         group_folder = kmz.newfolder(name=f"Group {group}")
         for inst, idf in gdf.groupby("Inst"):
             inst_folder = group_folder.newfolder(name=inst)
+            targets_folder = inst_folder.newfolder(name="Targets")
+            lines_folder = inst_folder.newfolder(name="Lines")
             for _, row in idf.iterrows():
-                pt = inst_folder.newpoint(
+                pt = targets_folder.newpoint(
                     name=row["Point"] if label else None,
                     coords=[(row["Longitude"], row["Latitude"], row["Altitude"])]
                 )
@@ -29,7 +31,7 @@ def make_kmz_structure(kmz, df, label, mon_color, ref_color, com_color):
                 pt.style.labelstyle.scale = 1.2 if row["Point"] == row["Inst"] else 0.5
 
                 if row["Point"] != row["Inst"]:
-                    ln = inst_folder.newlinestring(
+                    ln = lines_folder.newlinestring(
                         name=row["Point"],
                         coords=[
                             (idf.loc[idf['Point'] == row['Inst'], 'Longitude'].values[0],
